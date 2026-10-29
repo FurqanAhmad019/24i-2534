@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Task 6: Pakistan: Cities, Populations and Flight Routes</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            body {
+                font-family: sans-serif;
+                margin: 20px
+            }
+
+            h2 {
+                margin: 0 0 8px
+            }
+
+            text {
+                font-size: 12px
+            }
+
+            .tip {
+                position: absolute;
+                pointer-events: none;
+                background: #222;
+                color: #fff;
+                padding: 6px 9px;
+                border-radius: 4px;
+                font-size: 12px;
+                opacity: 0
+            }
+        </style>
+    </head>
+    <body>
+        <h2>Task 6: Pakistan: Cities, Populations and Flight Routes</h2>
+        <div class="tip" id="tip"></div>
+        <div id="chart"></div>
+        <script>
+            const tip = d3.select("#tip");
+
+            const showTip = (e, h) => tip.style("opacity", 1).html(h).style("left", (e.pageX + 12) + "px").style("top", (e.pageY + 12) + "px");
+
+            const hideTip = () => tip.style("opacity", 0);
+
+            const loadWorld = () => d3.json("dataset/world.geojson").catch(() => d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson"));
+
+            const W = 760, Ht = 760, svg = d3.select("#chart")
+                .append("svg")
+                .attr("width", W)
+                .attr("height", Ht)
+                .style("border", "1px solid #ddd");
+
+            Promise.all([
+                loadWorld(),
+                d3.csv("pakistan_cities.csv", d3.autoType),
+                d3.csv("flights.csv", d3.autoType)
+            ]).then(([world, cities, flights]) => {
+                const pak = world.features.find(d => d.id === "PAK"), proj = d3.geoMercator().fitExtent([[20, 20], [W - 20, Ht - 20]], pak), path = d3.geoPath(proj);
+
+                const pos = new Map(cities.map(c => [c.name, proj([c.lon, c.lat])]));
+
+                cities.forEach(c => c.deg = flights.filter(f => f.source === c.name || f.target === c.name).length);
+
+                const routes = flights.filter(f => pos.has(f.source) && pos.has(f.target));
+
+                svg.append("g")
+                    .selectAll("path")
+                    .data(world.features)
+                    .join("path")
+                    .attr("d", path)
+                    .attr("fill", d => d.id === "PAK" ? "#dff0e8" : "#f0ede6")
+                    .attr("stroke", "#aaa");
+
+                const w = d3.scaleLinear()
+                    .domain(d3.extent(flights, d => d.flights))
+                    .range([1, 10]), r = d3.scaleSqrt()
+                    .domain([0, d3.max(cities, d => d.pop)])
+                    .range([2, 34]);
+
+                const line = svg.append("g")
+                    .attr("stroke", "#777")
+                    .attr("stroke-opacity", .6)
+                    .selectAll("line")
+                    .data(routes)
+                    .join("line")
+                    .attr("x1", d => pos.get(d.source)[0])
+                    .attr("y1", d => pos.get(d.source)[1])
+                    .attr("x2", d => pos.get(d.target)[0])
+                    .attr("y2", d => pos.get(d.target)[1])
+                    .attr("stroke-width", d => w(d.flights));
+
+                line.append("title")
+                    .text(d => `${d.source}–${d.target}: ${d.flights}/week`);
+
+                const node = svg.append("g")
+                    .selectAll("g")
+                    .data(cities.slice().sort((a, b) => b.pop - a.pop))
+                    .join("g")
+                    .attr("transform", d => `translate(${pos.get(d.name)})`);
+
+                node.append("circle")
+                    .attr("r", d => r(d.pop))
+                    .attr("fill", d => d.deg >= 4 ? "#e8590c" : "#8a8a8a")
+                    .attr("fill-opacity", .75)
+                    .attr("stroke", "#fff");
+
+                node.append("text")
+                    .attr("x", d => r(d.pop) + 3)
+                    .attr("dy", "0.32em")
+                    .style("pointer-events", "none")
+                    .text(d => d.name);
+
+                node.on("mousemove", (e, d) => showTip(e, `<b>${d.name}</b><br>Pop: ${d3.format(",")(d.pop)}<br>Routes: ${d.deg}`))
+                    .on("mouseover", (e, d) => {
+                        const ok = l => l.source === d.name || l.target === d.name;
+
+                        line.attr("stroke-opacity", l => ok(l) ? 1 : .05);
+
+                        node.style("opacity", n => n === d || routes.some(l => ok(l) && (l.source === n.name || l.target === n.name)) ? 1 : .2)
+                    })
+                    .on("mouseout", () => {
+                        hideTip();
+                        line.attr("stroke-opacity", .6);
+                        node.style("opacity", 1)
+                    });
+
+                const lg = svg.append("g")
+                    .attr("transform", "translate(20,20)");
+
+                lg.append("rect")
+                    .attr("width", 230)
+                    .attr("height", 150)
+                    .attr("fill", "#fff")
+                    .attr("opacity", .9)
+                    .attr("stroke", "#ccc");
+
+                lg.append("text")
+                    .attr("x", 10)
+                    .attr("y", 20)
+                    .style("font-weight", "bold")
+                    .text("Legend");
+
+                lg.append("circle")
+                    .attr("cx", 20)
+                    .attr("cy", 42)
+                    .attr("r", 4)
+                    .attr("fill", "#555");
+
+                lg.append("circle")
+                    .attr("cx", 34)
+                    .attr("cy", 42)
+                    .attr("r", 9)
+                    .attr("fill", "#555");
+
+                lg.append("text")
+                    .attr("x", 50)
+                    .attr("y", 46)
+                    .text("Circle size = population");
+
+                lg.append("circle")
+                    .attr("cx", 20)
+                    .attr("cy", 68)
+                    .attr("r", 7)
+                    .attr("fill", "#e8590c");
+
+                lg.append("text")
+                    .attr("x", 34)
+                    .attr("y", 72)
+                    .text("Hub (4+ routes)");
+
+                lg.append("circle")
+                    .attr("cx", 20)
+                    .attr("cy", 92)
+                    .attr("r", 7)
+                    .attr("fill", "#8a8a8a");
+
+                lg.append("text")
+                    .attr("x", 34)
+                    .attr("y", 96)
+                    .text("Not a hub");
+
+                lg.append("line")
+                    .attr("x1", 10)
+                    .attr("x2", 30)
+                    .attr("y1", 116)
+                    .attr("y2", 116)
+                    .attr("stroke", "#777")
+                    .attr("stroke-width", 2);
+
+                lg.append("text")
+                    .attr("x", 38)
+                    .attr("y", 120)
+                    .text("Line width = flights/week");
+
+                lg.append("text")
+                    .attr("x", 10)
+                    .attr("y", 142)
+                    .text("Position = geographic location");
+            });
+        </script>
+    </body>
+</html>

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Task 5: Pakistan Cities Point Map</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            body {
+                font-family: sans-serif;
+                margin: 20px
+            }
+
+            h2 {
+                margin: 0 0 8px
+            }
+
+            text {
+                font-size: 12px
+            }
+
+            .tip {
+                position: absolute;
+                pointer-events: none;
+                background: #222;
+                color: #fff;
+                padding: 6px 9px;
+                border-radius: 4px;
+                font-size: 12px;
+                opacity: 0
+            }
+        </style>
+    </head>
+    <body>
+        <h2>Task 5: Pakistan Cities Point Map</h2>
+        <div class="tip" id="tip"></div>
+        <div id="chart"></div>
+        <script>
+            const tip = d3.select("#tip");
+
+            const showTip = (e, h) => tip.style("opacity", 1).html(h).style("left", (e.pageX + 12) + "px").style("top", (e.pageY + 12) + "px");
+
+            const hideTip = () => tip.style("opacity", 0);
+
+            const loadWorld = () => d3.json("dataset/world.geojson").catch(() => d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson"));
+
+            const W = 700, Ht = 700, svg = d3.select("#chart")
+                .append("svg")
+                .attr("width", W)
+                .attr("height", Ht)
+                .style("border", "1px solid #ddd");
+
+            Promise.all([
+                loadWorld(),
+                d3.csv("pakistan_cities.csv", d3.autoType)
+            ]).then(([world, cities]) => {
+                const pak = world.features.find(d => d.id === "PAK");
+
+                const proj = d3.geoMercator().fitExtent([[20, 20], [W - 20, Ht - 20]], pak), path = d3.geoPath(proj);
+
+                svg.append("g")
+                    .selectAll("path")
+                    .data(world.features)
+                    .join("path")
+                    .attr("d", path)
+                    .attr("fill", d => d.id === "PAK" ? "#dff0e8" : "#f0ede6")
+                    .attr("stroke", "#aaa");
+
+                const r = d3.scaleSqrt()
+                    .domain([0, d3.max(cities, d => d.pop)])
+                    .range([2, 45]);
+
+                const g = svg.append("g")
+                    .selectAll("g")
+                    .data(cities.slice().sort((a, b) => b.pop - a.pop))
+                    .join("g")
+                    .attr("transform", d => {
+                        const [x, y] = proj([d.lon, d.lat]);
+                        return `translate(${x},${y})`
+                    });
+
+                g.append("circle")
+                    .attr("r", d => r(d.pop))
+                    .attr("fill", "#e8704a")
+                    .attr("fill-opacity", .55)
+                    .attr("stroke", "#a63d1d")
+                    .on("mousemove", (e, d) => showTip(e, `<b>${d.name}</b><br>Population: ${d3.format(",")(d.pop)}`))
+                    .on("mouseout", hideTip);
+
+                g.filter(d => d.pop > 1e6)
+                    .append("text")
+                    .attr("x", d => r(d.pop) + 4)
+                    .attr("dy", "0.32em")
+                    .style("pointer-events", "none")
+                    .text(d => d.name);
+            });
+        </script>
+    </body>
+</html>

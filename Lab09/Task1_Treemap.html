@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Task 1: Course Enrollment Treemap</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            body {
+                font-family: sans-serif;
+                margin: 20px
+            }
+
+            h2 {
+                margin: 0 0 8px
+            }
+
+            text {
+                font-size: 12px
+            }
+
+            .tip {
+                position: absolute;
+                pointer-events: none;
+                background: #222;
+                color: #fff;
+                padding: 6px 9px;
+                border-radius: 4px;
+                font-size: 12px;
+                opacity: 0
+            }
+        </style>
+    </head>
+    <body>
+        <h2>Task 1: Course Enrollment Treemap</h2>
+        <div class="tip" id="tip"></div>
+        <div id="chart"></div>
+        <script>
+            const tip = d3.select("#tip");
+
+            const showTip = (e, h) => tip.style("opacity", 1).html(h).style("left", (e.pageX + 12) + "px").style("top", (e.pageY + 12) + "px");
+
+            const hideTip = () => tip.style("opacity", 0);
+
+            const loadWorld = () => d3.json("dataset/world.geojson").catch(() => d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson"));
+
+            const W = 960, Ht = 560, svg = d3.select("#chart").append("svg").attr("width", W).attr("height", Ht + 40);
+
+            d3.csv("university.csv", d3.autoType).then(rows => {
+                const root = d3.hierarchy({
+                    name: "University",
+                    children: Array.from(
+                        d3.group(rows, d => d.department),
+                        ([name, v]) => ({
+                            name,
+                            children: v.map(d => ({
+                                name: d.course,
+                                value: d.students,
+                                dept: name
+                            }))
+                        })
+                    )
+                })
+                    .sum(d => d.value || 0)
+                    .sort((a, b) => b.value - a.value);
+
+                d3.treemap().size([W, Ht]).paddingInner(2).round(true)(root);
+
+                const depts = root.children.map(d => d.data.name), color = d3.scaleOrdinal(d3.schemeTableau10).domain(depts);
+
+                const g = svg.selectAll("g").data(root.leaves()).join("g").attr("transform", d => `translate(${d.x0},${d.y0})`);
+
+                g.append("rect")
+                    .attr("width", d => d.x1 - d.x0)
+                    .attr("height", d => d.y1 - d.y0)
+                    .attr("fill", d => color(d.data.dept))
+                    .attr("stroke", "#fff")
+                    .on("mousemove", (e, d) => showTip(e, `<b>${d.data.name}</b><br>Department: ${d.data.dept}<br>Students: ${d.value}`))
+                    .on("mouseout", hideTip);
+
+                g.append("text")
+                    .attr("x", 6)
+                    .attr("y", 18)
+                    .attr("fill", "#fff")
+                    .style("pointer-events", "none")
+                    .style("font-weight", "bold")
+                    .text(d => d.data.name);
+
+                const lg = svg.append("g").attr("transform", `translate(0,${Ht + 20})`);
+
+                root.children.forEach((c, i) => {
+                    const s = lg.append("g").attr("transform", `translate(${i * 220},0)`);
+
+                    s.append("rect")
+                        .attr("width", 14)
+                        .attr("height", 14)
+                        .attr("fill", color(c.data.name));
+
+                    s.append("text")
+                        .attr("x", 20)
+                        .attr("y", 12)
+                        .text(`${c.data.name} (${c.value})`)
+                });
+            });
+        </script>
+    </body>
+</html>

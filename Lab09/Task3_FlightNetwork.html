@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Task 3: Pakistan Flight Route Network</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            body {
+                font-family: sans-serif;
+                margin: 20px
+            }
+
+            h2 {
+                margin: 0 0 8px
+            }
+
+            text {
+                font-size: 12px
+            }
+
+            .tip {
+                position: absolute;
+                pointer-events: none;
+                background: #222;
+                color: #fff;
+                padding: 6px 9px;
+                border-radius: 4px;
+                font-size: 12px;
+                opacity: 0
+            }
+        </style>
+    </head>
+    <body>
+        <h2>Task 3: Pakistan Flight Route Network</h2>
+        <div class="tip" id="tip"></div>
+        <div id="chart"></div>
+        <script>
+            const tip = d3.select("#tip");
+
+            const showTip = (e, h) => tip.style("opacity", 1).html(h).style("left", (e.pageX + 12) + "px").style("top", (e.pageY + 12) + "px");
+
+            const hideTip = () => tip.style("opacity", 0);
+
+            const loadWorld = () => d3.json("dataset/world.geojson").catch(() => d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson"));
+
+            const W = 900, Ht = 620, svg = d3.select("#chart")
+                .append("svg")
+                .attr("width", W)
+                .attr("height", Ht)
+                .style("border", "1px solid #ddd");
+
+            d3.csv("flights.csv", d3.autoType).then(links => {
+                const nodes = Array.from(
+                    new Set(links.flatMap(d => [d.source, d.target])),
+                    id => ({
+                        id,
+                        degree: links.filter(l => l.source === id || l.target === id).length
+                    })
+                );
+
+                const w = d3.scaleLinear()
+                    .domain(d3.extent(links, d => d.flights))
+                    .range([1, 12]), r = d3.scaleSqrt()
+                    .domain([0, d3.max(nodes, d => d.degree)])
+                    .range([5, 28]);
+
+                const sim = d3.forceSimulation(nodes)
+                    .force("link", d3.forceLink(links).id(d => d.id).distance(140))
+                    .force("charge", d3.forceManyBody().strength(-500))
+                    .force("center", d3.forceCenter(W / 2, Ht / 2))
+                    .force("collide", d3.forceCollide(d => r(d.degree) + 8));
+
+                const link = svg.append("g")
+                    .attr("stroke", "#999")
+                    .attr("stroke-opacity", .7)
+                    .selectAll("line")
+                    .data(links)
+                    .join("line")
+                    .attr("stroke-width", d => w(d.flights));
+
+                link.append("title")
+                    .text(d => `${d.source.id}–${d.target.id}: ${d.flights}/week`);
+
+                const node = svg.append("g")
+                    .selectAll("g")
+                    .data(nodes)
+                    .join("g")
+                    .call(d3.drag()
+                        .on("start", (e, d) => {
+                            if (!e.active) sim.alphaTarget(.3).restart();
+                            d.fx = d.x;
+                            d.fy = d.y
+                        })
+                        .on("drag", (e, d) => {
+                            d.fx = e.x;
+                            d.fy = e.y
+                        })
+                        .on("end", (e, d) => {
+                            if (!e.active) sim.alphaTarget(0);
+                            d.fx = d.fy = null
+                        }));
+
+                node.append("circle")
+                    .attr("r", d => r(d.degree))
+                    .attr("fill", "#f4cdbf")
+                    .attr("stroke", "#c0502d")
+                    .attr("stroke-width", 1.5);
+
+                node.append("text")
+                    .attr("dy", d => -r(d.degree) - 4)
+                    .attr("text-anchor", "middle")
+                    .text(d => d.id);
+
+                node.on("mouseover", (e, d) => {
+                    const ok = l => l.source === d || l.target === d;
+
+                    link.attr("stroke-opacity", l => ok(l) ? 1 : .08)
+                        .attr("stroke", l => ok(l) ? "#c0502d" : "#999");
+
+                    node.style("opacity", n => n === d || links.some(l => ok(l) && (l.source === n || l.target === n)) ? 1 : .15)
+                })
+                    .on("mouseout", () => {
+                        link.attr("stroke-opacity", .7)
+                            .attr("stroke", "#999");
+
+                        node.style("opacity", 1)
+                    });
+
+                sim.on("tick", () => {
+                    link.attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+
+                    node.attr("transform", d => `translate(${d.x},${d.y})`)
+                });
+
+                svg.append("text")
+                    .attr("x", 10)
+                    .attr("y", Ht - 10)
+                    .text("Node size = number of routes · Line width = flights per week · Drag nodes");
+            });
+        </script>
+    </body>
+</html>

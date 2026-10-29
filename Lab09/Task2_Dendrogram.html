@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Task 2: University Structure Dendrogram (click a department to collapse or expand)</title>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            body {
+                font-family: sans-serif;
+                margin: 20px
+            }
+
+            h2 {
+                margin: 0 0 8px
+            }
+
+            text {
+                font-size: 12px
+            }
+
+            .tip {
+                position: absolute;
+                pointer-events: none;
+                background: #222;
+                color: #fff;
+                padding: 6px 9px;
+                border-radius: 4px;
+                font-size: 12px;
+                opacity: 0
+            }
+        </style>
+    </head>
+    <body>
+        <h2>Task 2: University Structure Dendrogram (click a department to collapse or expand)</h2>
+        <div class="tip" id="tip"></div>
+        <div id="chart"></div>
+        <script>
+            const tip = d3.select("#tip");
+
+            const showTip = (e, h) => tip.style("opacity", 1).html(h).style("left", (e.pageX + 12) + "px").style("top", (e.pageY + 12) + "px");
+
+            const hideTip = () => tip.style("opacity", 0);
+
+            const loadWorld = () => d3.json("dataset/world.geojson").catch(() => d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson"));
+
+            const W = 960, Ht = 620, m = { l: 140, r: 200, t: 10, b: 10 };
+
+            const svg = d3.select("#chart")
+                .append("svg")
+                .attr("width", W)
+                .attr("height", Ht)
+                .append("g")
+                .attr("transform", `translate(${m.l},${m.t})`);
+
+            const color = d3.scaleOrdinal()
+                .domain([0, 1, 2])
+                .range(["#555", "#4e79a7", "#f28e2b"]);
+
+            d3.csv("university.csv", d3.autoType).then(rows => {
+                const root = d3.hierarchy({
+                    name: "University",
+                    children: Array.from(
+                        d3.group(rows, d => d.department),
+                        ([name, v]) => ({
+                            name,
+                            children: v.map(d => ({
+                                name: d.course,
+                                value: d.students
+                            }))
+                        })
+                    )
+                });
+
+                const link = d3.linkHorizontal()
+                    .x(d => d.y)
+                    .y(d => d.x);
+
+                function update() {
+                    d3.cluster().size([Ht - m.t - m.b, W - m.l - m.r])(root);
+
+                    svg.selectAll(".link")
+                        .data(root.links(), d => d.target.data.name)
+                        .join("path")
+                        .attr("class", "link")
+                        .attr("fill", "none")
+                        .attr("stroke", "#bbb")
+                        .attr("stroke-width", 1.5)
+                        .attr("d", link);
+
+                    const n = svg.selectAll(".node")
+                        .data(root.descendants(), d => d.data.name)
+                        .join(e => {
+                            const g = e.append("g").attr("class", "node");
+
+                            g.append("circle").attr("r", 7).attr("stroke", "#333");
+                            g.append("text").attr("dy", "0.32em");
+
+                            return g;
+                        })
+                        .attr("transform", d => `translate(${d.y},${d.x})`)
+                        .style("cursor", d => d.depth == 1 ? "pointer" : "default")
+                        .on("click", (e, d) => {
+                            if (d.depth == 1) {
+                                [d.children, d._children] = [d._children, d.children];
+                                update();
+                            }
+                        });
+
+                    n.select("circle")
+                        .attr("fill", d => color(d.depth))
+                        .attr("stroke-width", d => d._children ? 3 : 1);
+
+                    n.select("text")
+                        .attr("x", d => (d.children || d._children) ? -12 : 12)
+                        .attr("text-anchor", d => (d.children || d._children) ? "end" : "start")
+                        .text(d => d.data.name);
+                }
+
+                update();
+            });
+        </script>
+    </body>
+</html>
