@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Two Charts</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    .bar-label { font-size: 13px; text-anchor: middle; }
+    .axis-label { font-size: 13px; }
+  </style>
+</head>
+<body>
+<!--
+LAB 8 - TASK 2 : DEBUGGING ANSWERS (found before editing the code)
+Console : Uncaught SyntaxError: Identifier 'svg' has already been declared
+          (same for margin, width, height, innerWidth, innerHeight, g).
+Network : d3.v7.min.js and penguins.csv both loaded with status 200.
+Elements: both <svg> had id="chart"; the first had 3 <rect>, the second had 0.
+1. The Console said a const name was declared twice. Classic <script> blocks share one
+   global scope, so the second script clashes with the first and the browser refuses to
+   run the whole second script.
+2. Network was fine, so the files and paths are correct; the bug is in my code, not loading.
+3. Elements showed the duplicate id "chart" and the empty second SVG. The Console never
+   mentioned the ids. Even with the const clash fixed, d3.select("#chart") would always
+   pick the first SVG and draw all 6 bars there.
+4. Fix: gave the SVGs unique ids (chart1, chart2) and selected each one in its own script;
+   wrapped each script in an IIFE (function(){ ... })(); so variables are private.
+   Chart 2 uses d3.rollup(data, v => v.length, d => d.island).
+-->
+  <h1>Penguins at the research station</h1>
+
+  <h2>Chart 1: Average body mass by species</h2>
+  <svg id="chart1" width="600" height="400"></svg>
+
+  <h2>Chart 2: Number of penguins per island</h2>
+  <svg id="chart2" width="600" height="400"></svg>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+
+  <!-- ============ SCRIPT 1: body mass by species ============ -->
+  <script>
+    (function () {   // IIFE: keeps these variables private to this script
+      const svg = d3.select("#chart1");
+      const margin = { top: 30, right: 20, bottom: 50, left: 70 };
+      const width = +svg.attr("width"), height = +svg.attr("height");
+      const innerWidth = width - margin.left - margin.right;
+      const innerHeight = height - margin.top - margin.bottom;
+      const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+      d3.csv("penguins.csv", d3.autoType).then(data => {
+        data = data.filter(d => Number.isFinite(d.body_mass_g));
+        const avg = d3.rollup(data, v => d3.mean(v, d => d.body_mass_g), d => d.species);
+        const rows = Array.from(avg, ([name, value]) => ({ name, value }))
+                          .sort((a, b) => d3.ascending(a.name, b.name));
+        const maxValue = d3.max(rows, d => d.value);
+
+        const x = d3.scaleBand().domain(rows.map(d => d.name)).range([0, innerWidth]).padding(0.3);
+        const y = d3.scaleLinear().domain([0, maxValue * 1.1]).range([innerHeight, 0]);
+
+        g.append("g").attr("transform", `translate(0,${innerHeight})`).call(d3.axisBottom(x));
+        g.append("g").call(d3.axisLeft(y));
+
+        g.selectAll("rect").data(rows).join("rect")
+          .attr("x", d => x(d.name))
+          .attr("y", d => y(d.value))
+          .attr("width", x.bandwidth())
+          .attr("height", d => innerHeight - y(d.value))
+          .attr("fill", d => d.value === maxValue ? "red" : "steelblue");
+
+        g.selectAll(".bar-label").data(rows).join("text")
+          .attr("class", "bar-label")
+          .attr("x", d => x(d.name) + x.bandwidth() / 2)
+          .attr("y", d => y(d.value) - 6)
+          .text(d => Math.round(d.value));
+
+        svg.append("text").attr("class", "axis-label")
+          .attr("transform", "rotate(-90)")
+          .attr("x", -(margin.top + innerHeight / 2)).attr("y", 18)
+          .attr("text-anchor", "middle").text("Average body mass (g)");
+      });
+    })();
+  </script>
+
+  <!-- ============ SCRIPT 2: number of penguins per island ============ -->
+  <script>
+    (function () {
+      const svg = d3.select("#chart2");          // different id from chart 1
+      const margin = { top: 30, right: 20, bottom: 50, left: 70 };
+      const width = +svg.attr("width"), height = +svg.attr("height");
+      const innerWidth = width - margin.left - margin.right;
+      const innerHeight = height - margin.top - margin.bottom;
+      const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+
+      d3.csv("penguins.csv", d3.autoType).then(data => {
+        data = data.filter(d => d.island && d.island !== "NA");
+        const counts = d3.rollup(data, v => v.length, d => d.island);
+        const rows = Array.from(counts, ([name, value]) => ({ name, value }))
+                          .sort((a, b) => d3.ascending(a.name, b.name));
+        const maxValue = d3.max(rows, d => d.value);
+
+        const x = d3.scaleBand().domain(rows.map(d => d.name)).range([0, innerWidth]).padding(0.3);
+        const y = d3.scaleLinear().domain([0, maxValue * 1.1]).range([innerHeight, 0]);
+
+        g.append("g").attr("transform", `translate(0,${innerHeight})`).call(d3.axisBottom(x));
+        g.append("g").call(d3.axisLeft(y));
+
+        g.selectAll("rect").data(rows).join("rect")
+          .attr("x", d => x(d.name))
+          .attr("y", d => y(d.value))
+          .attr("width", x.bandwidth())
+          .attr("height", d => innerHeight - y(d.value))
+          .attr("fill", "steelblue");
+
+        g.selectAll(".bar-label").data(rows).join("text")
+          .attr("class", "bar-label")
+          .attr("x", d => x(d.name) + x.bandwidth() / 2)
+          .attr("y", d => y(d.value) - 6)
+          .text(d => d.value);
+
+        svg.append("text").attr("class", "axis-label")
+          .attr("transform", "rotate(-90)")
+          .attr("x", -(margin.top + innerHeight / 2)).attr("y", 18)
+          .attr("text-anchor", "middle").text("Number of penguins");
+      });
+    })();
+  </script>
+</body>
+</html>

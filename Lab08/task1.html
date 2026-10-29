@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Lab 8 - Task 1: Penguin Chart</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    button { padding: 6px 12px; margin-right: 6px; cursor: pointer; }
+    button.active { background: steelblue; color: white; }
+    .bar-label { font-size: 13px; text-anchor: middle; }
+    .axis-label { font-size: 13px; }
+  </style>
+</head>
+<body>
+<!--
+LAB 8 - TASK 1 : WRITTEN ANSWERS
+Step 1 (prediction): I predicted Gentoo would be the heaviest. (Write your own before running.)
+Step 2: Gentoo bar is red, Adelie and Chinstrap are blue.
+Step 3: Gentoo is tallest in flipper length too -> yes, the heaviest species also has the longest flippers.
+Step 4: Three bars (Biscoe, Dream, Torgersen); Biscoe is heaviest and is red.
+Step 5:
+ 1. .attr("height", d => innerHeight - y(d.value)) decides how tall each bar is
+    (y scale turns the average into pixels; .attr("y", ...) sets the top edge).
+ 2. The scale would be flipped: big values map to the bottom, so the tallest value would
+    draw the shortest bar and the y-axis would run upside down (0 at the top).
+ 3. Three <rect> elements, because .data(rows).join("rect") makes one rect per row of the
+    summarised data (3 species or 3 islands); d3.rollup collapses the raw rows first.
+-->
+  <h1 id="title"></h1>
+
+  <div>
+    <button id="btn-step2">Step 2: Body mass by species</button>
+    <button id="btn-step3">Step 3: Flipper length by species</button>
+    <button id="btn-step4">Step 4: Body mass by island</button>
+  </div>
+
+  <svg id="chart" width="600" height="400"></svg>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    // The three versions of the chart: only group, measure and labels differ
+    const VIEWS = {
+      step2: { group: "species", measure: "body_mass_g",
+               label: "Average body mass (g)",
+               title: "Which species is the heaviest? (average body mass)" },
+      step3: { group: "species", measure: "flipper_length_mm",
+               label: "Average flipper length (mm)",
+               title: "Does the same species have the longest flippers?" },
+      step4: { group: "island",  measure: "body_mass_g",
+               label: "Average body mass (g)",
+               title: "Which island has the heaviest penguins? (average body mass)" }
+    };
+
+    const svg = d3.select("#chart");
+    const margin = { top: 30, right: 20, bottom: 50, left: 70 };
+    const width  = +svg.attr("width");
+    const height = +svg.attr("height");
+    const innerWidth  = width  - margin.left - margin.right;
+    const innerHeight = height - margin.top  - margin.bottom;
+
+    d3.csv("penguins.csv", d3.autoType).then(allData => {
+
+      function draw(key) {
+        const { group, measure, label, title } = VIEWS[key];
+        document.getElementById("title").textContent = title;
+        d3.selectAll("button").classed("active", false);
+        d3.select("#btn-" + key).classed("active", true);
+
+        svg.selectAll("*").remove();   // clear previous chart
+        const g = svg.append("g")
+          .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // cleaning: drop rows where the measure or group is missing / "NA"
+        const data = allData.filter(d => Number.isFinite(d[measure]) && d[group] && d[group] !== "NA");
+
+        // one row per group: average of the measure
+        const avg  = d3.rollup(data, v => d3.mean(v, d => d[measure]), d => d[group]);
+        const rows = Array.from(avg, ([name, value]) => ({ name, value }))
+                          .sort((a, b) => d3.ascending(a.name, b.name));
+        const maxValue = d3.max(rows, d => d.value);
+
+        const x = d3.scaleBand()
+          .domain(rows.map(d => d.name))
+          .range([0, innerWidth])
+          .padding(0.3);
+
+        const y = d3.scaleLinear()
+          .domain([0, maxValue * 1.1])
+          .range([innerHeight, 0]);
+
+        g.append("g").attr("transform", `translate(0,${innerHeight})`).call(d3.axisBottom(x));
+        g.append("g").call(d3.axisLeft(y));
+
+        // bars: tallest is red, others blue
+        g.selectAll("rect")
+          .data(rows)
+          .join("rect")
+          .attr("x", d => x(d.name))
+          .attr("y", d => y(d.value))
+          .attr("width", x.bandwidth())
+          .attr("height", d => innerHeight - y(d.value))
+          .attr("fill", d => d.value === maxValue ? "red" : "steelblue");
+
+        g.selectAll(".bar-label")
+          .data(rows)
+          .join("text")
+          .attr("class", "bar-label")
+          .attr("x", d => x(d.name) + x.bandwidth() / 2)
+          .attr("y", d => y(d.value) - 6)
+          .text(d => Math.round(d.value));
+
+        svg.append("text")
+          .attr("class", "axis-label")
+          .attr("transform", "rotate(-90)")
+          .attr("x", -(margin.top + innerHeight / 2))
+          .attr("y", 18)
+          .attr("text-anchor", "middle")
+          .text(label);
+      }
+
+      d3.select("#btn-step2").on("click", () => draw("step2"));
+      d3.select("#btn-step3").on("click", () => draw("step3"));
+      d3.select("#btn-step4").on("click", () => draw("step4"));
+
+      draw("step2");   // default view
+    });
+  </script>
+</body>
+</html>
