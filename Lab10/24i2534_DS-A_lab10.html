@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab 10 – PM2.5 Time Series, 2025</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+  :root{--bg:#fff;--fg:#1f2933;--muted:#6b7280;--card:#f8fafc;--line:#e5e7eb}
+  @media (prefers-color-scheme:dark){:root{--bg:#14171c;--fg:#e5e7eb;--muted:#9ca3af;--card:#1c2128;--line:#2f3640}}
+  body{margin:0;font-family:system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--fg)}
+  main{max-width:1000px;margin:auto;padding:24px 16px 60px}
+  section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:18px 0}
+  h1{font-size:1.5rem} h2{font-size:1.1rem;margin:0 0 2px} .q{color:var(--muted);margin:0 0 6px}
+  .sub{font-weight:600;margin:4px 0} .note{color:var(--muted);font-size:.9rem;margin:4px 0}
+  svg{width:100%;height:auto;display:block} text{fill:currentColor;font-size:11px}
+  .domain,.tick line{stroke:var(--muted)} .grid line{stroke:var(--line)} .grid .domain{display:none}
+  button{padding:4px 12px;border-radius:6px;border:1px solid var(--muted);background:var(--bg);color:var(--fg);cursor:pointer}
+  li{margin:6px 0}
+</style>
+</head>
+<body>
+<main id="app"><h1>PM2.5 in the capital, 2025</h1></main>
+<script src="script.js"></script>
+</body>
+</html>
